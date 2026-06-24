@@ -4,6 +4,7 @@ import glob
 import subprocess
 import webbrowser
 from pathlib import Path
+from datetime import datetime
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_community.tools import DuckDuckGoSearchRun
@@ -14,6 +15,7 @@ from rapidfuzz import process, fuzz
 load_dotenv()
 
 MEMORY_FILE = "rocky_memory.json"
+NOTES_FILE = "rocky_notes.txt"
 
 # LLM
 llm = ChatGroq(
@@ -86,7 +88,33 @@ def open_application(app_name: str) -> str:
         except Exception as e:
             return f"Could not find '{app_name}' on your system."
 
-tools = [search_tool, open_url, open_application]
+@tool
+def save_note(note: str) -> str:
+    """Saves a note to a local file. Use this when the user wants to remember something or save a note."""
+    with open(NOTES_FILE, "a", encoding="utf-8") as f:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        f.write(f"[{timestamp}] {note}\n")
+    return "Note saved. Do not call this tool again."
+
+@tool
+def read_notes(query: str = "") -> str:
+    """Reads saved notes. Use this when the user wants to see their notes."""
+    if not os.path.exists(NOTES_FILE):
+        return "No notes saved yet."
+    with open(NOTES_FILE, "r", encoding="utf-8") as f:
+        notes = f.read().strip()
+    if not notes:
+        return "No notes saved yet."
+    return f"Here are your notes:\n{notes}"
+
+@tool
+def clear_notes(confirm: str) -> str:
+    """Clears all saved notes. Only call this if the user explicitly asks to clear or delete all their notes."""
+    if os.path.exists(NOTES_FILE):
+        open(NOTES_FILE, "w").close()
+    return "All notes cleared. Do not call this tool again."
+
+tools = [search_tool, open_url, open_application, save_note, read_notes, clear_notes]
 
 # Agent
 agent = create_react_agent(llm, tools)
@@ -138,6 +166,8 @@ def get_initial_messages(past_summary: str) -> list:
 Important rules:
 - When you use a tool and it returns success, do NOT call it again. One tool call per task is enough.
 - After opening an app or URL, just confirm to the user that it's done.
+- For saving notes, extract the actual note content from what the user said and save just that.
+- When reading notes, display them clearly to the user.
 """
     if past_summary:
         system_prompt += f"\nHere is what you remember from past conversations with the user:\n{past_summary}"
