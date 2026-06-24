@@ -1,2 +1,23 @@
+# secrets
 .env
+token.json
 credentials.json
+
+# memory & notes
+rocky_memory.json
+rocky_notes.txt
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# vs code
+.vscode/
+
+# windows
+Thumbs.db
+desktop.ini
