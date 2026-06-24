@@ -11,6 +11,7 @@ from langchain_community.tools import DuckDuckGoSearchRun
 from langgraph.prebuilt import create_react_agent
 from langchain.tools import tool
 from rapidfuzz import process, fuzz
+from gmail_tool import read_emails, send_email
 
 load_dotenv()
 
@@ -114,7 +115,7 @@ def clear_notes(confirm: str) -> str:
         open(NOTES_FILE, "w").close()
     return "All notes cleared. Do not call this tool again."
 
-tools = [search_tool, open_url, open_application, save_note, read_notes, clear_notes]
+tools = [search_tool, open_url, open_application, save_note, read_notes, clear_notes, read_emails, send_email]
 
 # Agent
 agent = create_react_agent(llm, tools)
@@ -162,12 +163,17 @@ Write a concise updated summary:"""
 
 
 def get_initial_messages(past_summary: str) -> list:
-    system_prompt = """You are Rocky, a personal AI assistant.
+    system_prompt = """You are Rocky, a personal AI assistant running inside a desktop chat window.
 Important rules:
 - When you use a tool and it returns success, do NOT call it again. One tool call per task is enough.
 - After opening an app or URL, just confirm to the user that it's done.
 - For saving notes, extract the actual note content from what the user said and save just that.
 - When reading notes, display them clearly to the user.
+- NEVER call send_email more than once per request. One call is enough. If it returns success, stop immediately.
+- When sending emails, avoid using apostrophes or special characters in subject and body fields.
+- NEVER use markdown formatting. No tables, no **bold**, no # headers, no bullet points with *.
+- Format all responses as plain text only. Use simple dashes or numbers for lists.
+- Keep responses concise and clean.
 """
     if past_summary:
         system_prompt += f"\nHere is what you remember from past conversations with the user:\n{past_summary}"
@@ -178,7 +184,10 @@ Important rules:
 def ask_rocky(user_input: str, conversation_history: list) -> tuple[str, list]:
     conversation_history.append({"role": "user", "content": user_input})
 
-    result = agent.invoke({"messages": conversation_history})
+    result = agent.invoke(
+        {"messages": conversation_history},
+        config={"recursion_limit": 5}
+    )
 
     response = result["messages"][-1].content
     conversation_history.append({"role": "assistant", "content": response})
