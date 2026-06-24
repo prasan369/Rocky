@@ -11,7 +11,7 @@ from langchain_community.tools import DuckDuckGoSearchRun
 from langgraph.prebuilt import create_react_agent
 from langchain.tools import tool
 from rapidfuzz import process, fuzz
-from gmail_tool import read_emails, send_email
+from gmail_tool import read_emails, send_email,send_job_application
 
 load_dotenv()
 
@@ -115,7 +115,7 @@ def clear_notes(confirm: str) -> str:
         open(NOTES_FILE, "w").close()
     return "All notes cleared. Do not call this tool again."
 
-tools = [search_tool, open_url, open_application, save_note, read_notes, clear_notes, read_emails, send_email]
+tools = [search_tool, open_url, open_application, save_note, read_notes, clear_notes, read_emails, send_email, send_job_application]
 
 # Agent
 agent = create_react_agent(llm, tools)
