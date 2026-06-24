@@ -12,6 +12,7 @@ from langgraph.prebuilt import create_react_agent
 from langchain.tools import tool
 from rapidfuzz import process, fuzz
 from gmail_tool import read_emails, send_email,send_job_application
+from camera_tool import look_and_describe, read_text_from_camera
 
 load_dotenv()
 
@@ -20,7 +21,7 @@ NOTES_FILE = "rocky_notes.txt"
 
 # LLM
 llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
+    model="openai/gpt-oss-120b",
     api_key=os.getenv("GROQ_API_KEY")
 )
 
@@ -115,7 +116,7 @@ def clear_notes(confirm: str) -> str:
         open(NOTES_FILE, "w").close()
     return "All notes cleared. Do not call this tool again."
 
-tools = [search_tool, open_url, open_application, save_note, read_notes, clear_notes, read_emails, send_email, send_job_application]
+tools = [search_tool, open_url, open_application, save_note, read_notes, clear_notes, read_emails, send_email, send_job_application, look_and_describe, read_text_from_camera]
 
 # Agent
 agent = create_react_agent(llm, tools)
@@ -171,9 +172,11 @@ Important rules:
 - When reading notes, display them clearly to the user.
 - NEVER call send_email more than once per request. One call is enough. If it returns success, stop immediately.
 - When sending emails, avoid using apostrophes or special characters in subject and body fields.
+- When the user wants to apply for a job or send their CV, use send_job_application not send_email.
 - NEVER use markdown formatting. No tables, no **bold**, no # headers, no bullet points with *.
 - Format all responses as plain text only. Use simple dashes or numbers for lists.
 - Keep responses concise and clean.
+- When the user says "look", "can you see", "what do you see", "read this", "what is this", ALWAYS use the look_and_describe tool. Never say you cannot see.
 """
     if past_summary:
         system_prompt += f"\nHere is what you remember from past conversations with the user:\n{past_summary}"
