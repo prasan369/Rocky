@@ -1,9 +1,15 @@
 import os
 import json
+import glob
+import subprocess
+import webbrowser
+from pathlib import Path
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_community.tools import DuckDuckGoSearchRun
 from langgraph.prebuilt import create_react_agent
+from langchain.tools import tool
+from rapidfuzz import process, fuzz
 
 load_dotenv()
 
@@ -17,7 +23,70 @@ llm = ChatGroq(
 
 # Tools
 search_tool = DuckDuckGoSearchRun()
-tools = [search_tool]
+
+@tool
+def open_url(url: str) -> str:
+    """Opens a URL in the default web browser. Use this when the user wants to open a website."""
+    webbrowser.open(url)
+    return f"Opened {url} in browser. Do not call this tool again."
+
+def get_all_start_menu_apps() -> dict[str, str]:
+    """Scan Start Menu and return {app_name: full_path} dict."""
+    start_menu_dirs = [
+        os.path.expandvars(r"%APPDATA%\Microsoft\Windows\Start Menu\Programs"),
+        os.path.expandvars(r"%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs"),
+    ]
+
+    apps = {}
+    for directory in start_menu_dirs:
+        for ext in ["*.lnk", "*.exe"]:
+            pattern = os.path.join(directory, "**", ext)
+            matches = glob.glob(pattern, recursive=True)
+            for match in matches:
+                name = Path(match).stem.lower()
+                apps[name] = match
+
+    return apps
+
+def find_best_app_match(app_name: str, apps: dict[str, str]) -> tuple[str, str] | None:
+    """Use fuzzy matching to find the best app match."""
+    if not apps:
+        return None
+
+    result = process.extractOne(
+        app_name.lower(),
+        apps.keys(),
+        scorer=fuzz.WRatio,
+        score_cutoff=60
+    )
+
+    if result:
+        matched_name, score, _ = result
+        return matched_name, apps[matched_name]
+
+    return None
+
+@tool
+def open_application(app_name: str) -> str:
+    """Opens an application on Windows by searching the Start Menu with fuzzy matching.
+    Use this when the user wants to open any program or app.
+    Only call this tool ONCE per request."""
+
+    apps = get_all_start_menu_apps()
+    match = find_best_app_match(app_name, apps)
+
+    if match:
+        matched_name, path = match
+        subprocess.Popen(f'"{path}"', shell=True)
+        return f"Successfully opened {matched_name}. Do not call this tool again."
+    else:
+        try:
+            subprocess.Popen(app_name, shell=True)
+            return f"Successfully opened {app_name}. Do not call this tool again."
+        except Exception as e:
+            return f"Could not find '{app_name}' on your system."
+
+tools = [search_tool, open_url, open_application]
 
 # Agent
 agent = create_react_agent(llm, tools)
@@ -65,13 +134,15 @@ Write a concise updated summary:"""
 
 
 def get_initial_messages(past_summary: str) -> list:
-    if not past_summary:
-        return []
-    
-    return [{
-        "role": "system",
-        "content": f"You are Rocky, a personal AI assistant. Here is what you remember from past conversations with the user:\n{past_summary}"
-    }]
+    system_prompt = """You are Rocky, a personal AI assistant.
+Important rules:
+- When you use a tool and it returns success, do NOT call it again. One tool call per task is enough.
+- After opening an app or URL, just confirm to the user that it's done.
+"""
+    if past_summary:
+        system_prompt += f"\nHere is what you remember from past conversations with the user:\n{past_summary}"
+
+    return [{"role": "system", "content": system_prompt}]
 
 
 def ask_rocky(user_input: str, conversation_history: list) -> tuple[str, list]:

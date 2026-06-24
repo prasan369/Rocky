@@ -1,0 +1,3 @@
+used rapidfuzz so it can know what the messy input is .Even if the user doesn’t type the exact name, still figure out what they meant.
+And instead of putting all the links of the apps to open i just did get_all_start_menu_apps() so it knows what to open 
+
