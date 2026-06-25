@@ -13,6 +13,7 @@ from langchain.tools import tool
 from rapidfuzz import process, fuzz
 from gmail_tool import read_emails, send_email,send_job_application
 from camera_tool import look_and_describe, read_text_from_camera
+from system_tool import control_volume, take_screenshot, lock_pc, control_brightness
 
 load_dotenv()
 
@@ -116,7 +117,7 @@ def clear_notes(confirm: str) -> str:
         open(NOTES_FILE, "w").close()
     return "All notes cleared. Do not call this tool again."
 
-tools = [search_tool, open_url, open_application, save_note, read_notes, clear_notes, read_emails, send_email, send_job_application, look_and_describe, read_text_from_camera]
+tools = [search_tool, open_url, open_application, save_note, read_notes, clear_notes, read_emails, send_email, send_job_application, look_and_describe, read_text_from_camera, control_volume, take_screenshot, lock_pc, control_brightness]
 
 # Agent
 agent = create_react_agent(llm, tools)
@@ -168,6 +169,7 @@ def get_initial_messages(past_summary: str) -> list:
 Important rules:
 - When you use a tool and it returns success, do NOT call it again. One tool call per task is enough.
 - After opening an app or URL, just confirm to the user that it's done.
+- For volume, brightness, screenshots, or locking PC use the appropriate system tool.
 - For saving notes, extract the actual note content from what the user said and save just that.
 - When reading notes, display them clearly to the user.
 - NEVER call send_email more than once per request. One call is enough. If it returns success, stop immediately.
@@ -189,7 +191,7 @@ def ask_rocky(user_input: str, conversation_history: list) -> tuple[str, list]:
 
     result = agent.invoke(
         {"messages": conversation_history},
-        config={"recursion_limit": 5}
+        config={"recursion_limit": 15}
     )
 
     response = result["messages"][-1].content
